@@ -133,7 +133,7 @@ def draw_detection(detection, detection_data_size):
     pygame.draw.line(WIN, GREEN, bottom_left, top_right)
 
 
-def draw_window(_map, player, destination, destinations_reached,
+def draw_window(_map, player, destinations, destinations_reached,
                 sensors, tracks, all_detections,
                 display_all: bool):
 
@@ -151,7 +151,8 @@ def draw_window(_map, player, destination, destinations_reached,
 
     draw_player(player, line_data_size)
 
-    pygame.draw.rect(WIN, WHITE, destination)
+    for destination in destinations:
+        pygame.draw.rect(WIN, WHITE, destination)
 
     for sensor in sensors:
         draw_sensor(sensor)
@@ -196,6 +197,7 @@ def main():
                     WIDTH//10, (9*HEIGHT)//10, 5, 5)
 
     destination = random_destination()
+    destination_history = [destination]
 
     sensors = random_sensors()
     
@@ -218,10 +220,11 @@ def main():
             if event.type == DESTINATION_REACHED:
                 destinations_reached += 1
                 if destinations_reached == NUM_DESTINATIONS:
-                    end_game(_map, player, destination, destinations_reached,
+                    end_game(_map, player, destination_history, destinations_reached,
                              tracker, tracker.tracks, all_detections)
                     run = False
                 destination = random_destination()
+                destination_history.append(destination)
                 break
         if not run:
             break
@@ -237,7 +240,7 @@ def main():
 
         all_detections = tracker.all_detections
 
-        draw_window(_map, player, destination, destinations_reached,
+        draw_window(_map, player, [destination], destinations_reached,
                     tracker.sensors, tracks, all_detections,
                     display_all=False)
         handle_destination(player, destination)
@@ -248,7 +251,7 @@ def main():
     main()  # start game again
 
 
-def end_game(_map, player, destination, destinations_reached,
+def end_game(_map, player, destinations, destinations_reached,
              tracker, tracks, all_detections):
 
     score = metrics(tracker)
@@ -256,7 +259,7 @@ def end_game(_map, player, destination, destinations_reached,
     win_text = WIN_FONT.render("Complete", 1, WHITE)
     score_text = SCORE_FONT.render(f"Score: {score}", 1, WHITE)
 
-    draw_window(_map, player, destination, destinations_reached,
+    draw_window(_map, player, destinations, destinations_reached,
                 tracker.sensors, tracks, all_detections,
                 display_all=True)
     WIN.blit(
