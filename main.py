@@ -220,7 +220,8 @@ def main():
             if event.type == DESTINATION_REACHED:
                 destinations_reached += 1
                 if destinations_reached == NUM_DESTINATIONS:
-                    end_game(_map, player, destination_history, destinations_reached,
+                    end_game(_map, player,
+                             destination_history, destinations_reached,
                              tracker, tracker.tracks, all_detections)
                     run = False
                 destination = random_destination()
