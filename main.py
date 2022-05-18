@@ -49,6 +49,7 @@ DESTINATIONS_FONT = pygame.font.SysFont('calibri', 5)
 
 NUM_ISLANDS = 20
 PROB_SPAWN = 0.5
+MAP_BUFFER = 30
 
 NUM_DESTINATIONS = 3
 
@@ -189,7 +190,7 @@ def random_sensors():
 
 def main():
 
-    make_map(NUM_ISLANDS, WIDTH, HEIGHT, PROB_SPAWN)
+    make_map(NUM_ISLANDS, WIDTH, HEIGHT, PROB_SPAWN, MAP_BUFFER)
     _map = pygame.transform.scale(
         pygame.image.load(os.path.join('Assets', 'map.png')), (WIDTH, HEIGHT))
 
