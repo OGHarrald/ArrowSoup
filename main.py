@@ -48,7 +48,7 @@ SCORE_FONT = pygame.font.SysFont('calibri', 50)
 DESTINATIONS_FONT = pygame.font.SysFont('calibri', 5)
 
 NUM_ISLANDS = 20
-PROB_SPAWN = 0.5
+PROB_SPAWN = 0.2555
 MAP_BUFFER = 30
 
 NUM_DESTINATIONS = 3

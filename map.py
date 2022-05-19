@@ -14,24 +14,23 @@ DIRECTIONS = [UP, DOWN, LEFT, RIGHT]
 
 def terrainify(array):
 
-    deep_ocean = array < 0.3
-    ocean = array < 0.4
-    sea = array <= 0.5
-    beach = array > 0.5
-    land = array > 0.6
+    deep_ocean = array < 0.05
+    ocean = array < 0.2
+    sea = array <= 0.4
+    beach = array > 0.4
+    land = array > 0.5
     inland = array > 0.8
+    mountain = array > 0.91
+    tip = array > 0.95
 
     array[beach] = 0.7
-    array[land] = 0.5
-    array[inland] = 0.4
+    array[land] = 0.55
+    array[inland] = 0.5
+    array[mountain] = 0.45
+    array[tip] = 0.4
     array[sea] = 0.2
     array[ocean] = 0.15
     array[deep_ocean] = 0.1
-
-    # land = array > 0.5
-    # ocean = array <= 0.5
-    # array[land] = 0.5
-    # array[ocean] = 0.15
 
     array[0, 0] = 1
     array[1, 0] = 0
@@ -53,6 +52,8 @@ def make_map(num_islands, width, height, prob_spawn, buffer):
 
     used_coords = set()
 
+    i = 1
+
     while True:
         prev_map = _map.copy()
         nearby_coords = set()
@@ -62,13 +63,27 @@ def make_map(num_islands, width, height, prob_spawn, buffer):
                 if new_coord not in used_coords:
                     if (buffer <= new_coord[1] < width - buffer
                             and buffer <= new_coord[0] < height - buffer):
-                        if np.random.rand() < prob_spawn:
-                            _map[new_coord] = 1
-                            nearby_coords.add(new_coord)
+                        new_coord_neighbours = [tuple(np.array(new_coord) + direction)
+                                                for direction in DIRECTIONS]
+                        new_coord_neighbours = [c for c in new_coord_neighbours
+                                                if buffer <= c[0] < height - buffer
+                                                and buffer <= c[1] < width - buffer]
+
+                        land_total = int(sum([_map[c] for c in new_coord_neighbours]))
+
+                        for _ in range(land_total + 1):
+                            if np.random.rand() < prob_spawn:
+                                _map[new_coord] = 1
+                                nearby_coords.add(new_coord)
+                                break
+
         used_coords.update(current_coords)
         current_coords = nearby_coords
         if np.array_equal(prev_map, _map):
             break
+        if i == 800:
+            break
+        i += 1
 
     sigma_x = 7
     sigma_y = 7
@@ -85,7 +100,7 @@ def make_map(num_islands, width, height, prob_spawn, buffer):
     fig.add_axes(ax)
 
     ax.imshow(_map, interpolation='nearest', cmap='gist_earth', aspect='auto')
-    fig.savefig(os.path.join('Assets', 'map'))
+    fig.savefig(os.path.join('Assets', 'map4'))
 
 
-make_map(2, 1200, 700, 0.9, 50)
+make_map(20, 1200, 700, 0.2555, 30)
