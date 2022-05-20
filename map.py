@@ -38,6 +38,19 @@ def terrainify(array):
     return array
 
 
+def save_map(_map, width, height, cmap, filename):
+
+    fig = plt.figure(frameon=False)
+    fig.set_size_inches(width//100, height//100)
+
+    ax = plt.Axes(fig, [0., 0., 1., 1.])
+    ax.set_axis_off()
+    fig.add_axes(ax)
+
+    ax.imshow(_map, interpolation='nearest', cmap=cmap, aspect='auto')
+    fig.savefig(os.path.join('Assets', filename))
+
+
 def make_map(num_islands, width, height, prob_spawn, buffer):
 
     _map = np.zeros([height, width])
@@ -92,15 +105,7 @@ def make_map(num_islands, width, height, prob_spawn, buffer):
 
     _map = terrainify(_map)
 
-    fig = plt.figure(frameon=False)
-    fig.set_size_inches(width//100, height//100)
+    save_map(_map, width, height, 'gist_earth', 'map')
+    save_map(_map, width, height, 'bone', 'minimap')
 
-    ax = plt.Axes(fig, [0., 0., 1., 1.])
-    ax.set_axis_off()
-    fig.add_axes(ax)
-
-    ax.imshow(_map, interpolation='nearest', cmap='gist_earth', aspect='auto')
-    fig.savefig(os.path.join('Assets', 'map4'))
-
-
-make_map(20, 1200, 700, 0.2555, 30)
+make_map(20, 1200, 700, 0.2455, 30)

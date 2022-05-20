@@ -19,6 +19,7 @@ FPS = 60
 pygame.display.set_caption("Arrow Soup")
 
 WHITE = (255, 255, 255)
+GREY_BLUE = (150, 150, 255)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0, 15)
 BLUE = (0, 0, 255)
@@ -26,14 +27,19 @@ ORANGE = (255, 125, 0)
 BLACK = (0, 0, 0)
 
 DETECTION_SIZE = 5
-PLAYER_SIZE = 15
+PLAYER_SIZE = 10
 LINE_DATA_SIZE = 100
 DETECTION_DATA_SIZE = 10
-DESTINATION_WIDTH = 50
-DESTINATION_HEIGHT = 10
+DESTINATION_WIDTH = 25
+DESTINATION_HEIGHT = 5
+PLAYER_VISION = 300
+MINIMAP_SCALE = 10
+MINIMAP_WIDTH, MINIMAP_HEIGHT = WIDTH // MINIMAP_SCALE, HEIGHT // MINIMAP_SCALE
+DISPLAY_OFFSET = (0, 0)
 
-VEL = 1
-ROT_SPEED = np.radians(5)
+SPEED = 0.5
+MAX_SPEED = 1
+ROT_SPEED = np.radians(1)
 INITIAL_ORIENT = np.radians(0)
 
 DETECTION_PERIOD = 30
@@ -45,10 +51,11 @@ DESTINATION_REACHED = pygame.USEREVENT + 1
 
 WIN_FONT = pygame.font.SysFont('calibri', 100)
 SCORE_FONT = pygame.font.SysFont('calibri', 50)
-DESTINATIONS_FONT = pygame.font.SysFont('calibri', 5)
+DESTINATIONS_FONT = pygame.font.SysFont('calibri', 20)
+SPEEDOMETER_FONT = pygame.font.SysFont('calibri', 10)
 
 NUM_ISLANDS = 20
-PROB_SPAWN = 0.2555
+PROB_SPAWN = 0.2455
 MAP_BUFFER = 30
 
 NUM_DESTINATIONS = 3
@@ -62,11 +69,11 @@ def player_move(player, keys_pressed):
         player.orientation -= player.rot_speed
     if keys_pressed[pygame.K_UP]:
         new_vel = player.vel + 0.1
-        if new_vel < 10:
+        if new_vel < MAX_SPEED:
             player.vel += 0.1
     if keys_pressed[pygame.K_DOWN]:
         new_vel = player.vel - 0.1
-        if new_vel >= 0.1:
+        if new_vel >= 0.3:
             player.vel -= 0.1
 
     player.move()
@@ -78,39 +85,38 @@ def handle_destination(player, destination):
         pygame.event.post(pygame.event.Event(DESTINATION_REACHED))
 
 
-def draw_player(player, line_data_size):
-
-    plot_history = player.loc_history[-line_data_size:]
+def draw_line(data, data_size):
+    plot_history = data[-data_size:]
     for coord, next_coord in zip(plot_history[:-1],
                                  plot_history[1:]):
-        pygame.draw.line(WIN, WHITE, coord, next_coord)
+        pygame.draw.line(WIN, GREY_BLUE, coord, next_coord)
 
-    arrow_left_x = player.x + PLAYER_SIZE * np.cos(
-        -player.orientation + np.radians(90))
-    arrow_left_y = player.y + PLAYER_SIZE * np.sin(
-        -player.orientation + np.radians(90))
-    arrow_right_x = player.x + PLAYER_SIZE * np.cos(
-        -player.orientation - np.radians(90))
-    arrow_right_y = player.y + PLAYER_SIZE * np.sin(
-        -player.orientation - np.radians(90))
-    front_x = player.x + PLAYER_SIZE / 2 * np.cos(player.orientation)
-    front_y = player.y - PLAYER_SIZE / 2 * np.sin(player.orientation)
+
+def draw_player(player, line_data_size):
+
+    draw_line(player.left_wing_history, line_data_size)
+    draw_line(player.right_wing_history, line_data_size)
 
     pygame.draw.polygon(WIN,
                         WHITE,
-                        [(front_x, front_y),
-                         (arrow_left_x, arrow_left_y),
-                         (arrow_right_x, arrow_right_y)])
+                        [player.nose_history[-1],
+                         player.left_wing_history[-1],
+                         (player.x, player.y),
+                         player.right_wing_history[-1]])
 
 
-def draw_sensor(sensor):
+def draw_sensor(sensor, offset, scale):
 
     x, y = sensor.position
+    x /= scale
+    y /= scale
+    x += offset[0]
+    y += offset[1]
     _range = sensor.max_range
+    _range /= scale
+
     sensor_rect = pygame.Rect(x - _range, y - _range, 2 * _range, 2 * _range)
     pygame.draw.ellipse(WIN, RED, sensor_rect, 1)
-    sensor_rect = pygame.Rect(x - 1, y - 1, 2, 2)
-    pygame.draw.ellipse(WIN, RED, sensor_rect)
 
 
 def draw_track(track, line_data_size):
@@ -134,8 +140,51 @@ def draw_detection(detection, detection_data_size):
     pygame.draw.line(WIN, GREEN, bottom_left, top_right)
 
 
-def draw_window(_map, player, destinations, destinations_reached,
-                sensors, tracks, all_detections,
+def show_display(minimap, player, destinations, destinations_reached, detected, tracks, sensors):
+
+    WIN.blit(minimap, (0, 0))
+
+    for destination in destinations:
+        x, y = destination.x, destination.y
+        x = x // MINIMAP_SCALE
+        y = y // MINIMAP_SCALE
+        x += DISPLAY_OFFSET[0]
+        y += DISPLAY_OFFSET[0]
+        r = pygame.Rect(x,
+                        y,
+                        DESTINATION_WIDTH//(MINIMAP_SCALE/5),
+                        DESTINATION_HEIGHT//(MINIMAP_SCALE/5))
+        pygame.draw.rect(WIN, WHITE, r)
+
+    for sensor in sensors:
+        draw_sensor(sensor, DISPLAY_OFFSET, MINIMAP_SCALE)
+
+    destinations_text = DESTINATIONS_FONT.render(
+        f"Destinations: {destinations_reached}/{NUM_DESTINATIONS}", 1, WHITE)
+    WIN.blit(destinations_text,
+             (DISPLAY_OFFSET[0], DISPLAY_OFFSET[1] + MINIMAP_HEIGHT))
+
+    speedometer_text = SPEEDOMETER_FONT.render(
+        f"Speed: {round(player.vel, 2)}", 1, WHITE)
+    WIN.blit(speedometer_text,
+             (DISPLAY_OFFSET[0], DISPLAY_OFFSET[1]+MINIMAP_HEIGHT+20))
+
+    if detected:
+        speedometer_text = SPEEDOMETER_FONT.render(
+            f"Detected", 1, ORANGE)
+        WIN.blit(speedometer_text,
+                 (DISPLAY_OFFSET[0], DISPLAY_OFFSET[1]+MINIMAP_HEIGHT+30))
+
+    if tracks:
+        speedometer_text = SPEEDOMETER_FONT.render(
+            f"Tracked", 1, RED)
+        WIN.blit(speedometer_text,
+                 (DISPLAY_OFFSET[0], DISPLAY_OFFSET[1]+MINIMAP_HEIGHT+40))
+
+
+def draw_window(_map, minimap, player,
+                destinations, destinations_reached,
+                sensors, tracks, all_detections, detected,
                 display_all: bool):
 
     if display_all:
@@ -146,32 +195,40 @@ def draw_window(_map, player, destinations, destinations_reached,
 
     WIN.blit(_map, (0, 0))
 
-    destinations_text = SCORE_FONT.render(
-        f"Destinations: {destinations_reached}/{NUM_DESTINATIONS}", 1, WHITE)
-    WIN.blit(destinations_text, (0, 0))
-
     draw_player(player, line_data_size)
 
     for destination in destinations:
         pygame.draw.rect(WIN, WHITE, destination)
 
-    for sensor in sensors:
-        draw_sensor(sensor)
-
     for track in tracks:
         draw_track(track, line_data_size)
+    #
+    # for detections in all_detections[-detection_data_size:]:
+    #     for detection in detections:
+    #         draw_detection(detection, detection_data_size)
 
-    for detections in all_detections[-detection_data_size:]:
-        for detection in detections:
-            draw_detection(detection, detection_data_size)
+    if not display_all:
+        reveal_surface = pygame.Surface((WIDTH, HEIGHT))
+        reveal_surface.set_alpha(255)
+        reveal_surface.fill(BLACK)
+        rect = pygame.Rect(
+            player.x - PLAYER_VISION // 2,
+            player.y - PLAYER_VISION // 2,
+            PLAYER_VISION,
+            PLAYER_VISION
+        )
+        pygame.draw.ellipse(reveal_surface, RED, rect)
+        WIN.blit(reveal_surface, (0, 0))
+
+    show_display(minimap, player, destinations, destinations_reached, detected, tracks, sensors)
 
     pygame.display.update()
 
 
 def random_destination():
 
-    destination_x = (WIDTH - DESTINATION_WIDTH) * random.random()
-    destination_y = (HEIGHT - DESTINATION_HEIGHT) * random.random()
+    destination_x = np.random.randint(MINIMAP_WIDTH, WIDTH - DESTINATION_WIDTH)
+    destination_y = np.random.randint(MINIMAP_HEIGHT, HEIGHT - DESTINATION_HEIGHT)
     destination = pygame.Rect(destination_x, destination_y,
                               DESTINATION_WIDTH, DESTINATION_HEIGHT)
 
@@ -193,8 +250,13 @@ def main():
     make_map(NUM_ISLANDS, WIDTH, HEIGHT, PROB_SPAWN, MAP_BUFFER)
     _map = pygame.transform.scale(
         pygame.image.load(os.path.join('Assets', 'map.png')), (WIDTH, HEIGHT))
+    minimap = pygame.transform.scale(
+        pygame.image.load(
+            os.path.join('Assets', 'minimap.png')),
+        (MINIMAP_WIDTH, MINIMAP_HEIGHT)
+    )
 
-    player = Player(WIDTH, HEIGHT, VEL, INITIAL_ORIENT, ROT_SPEED,
+    player = Player(WIDTH, HEIGHT, SPEED, INITIAL_ORIENT, ROT_SPEED, PLAYER_SIZE,
                     WIDTH//10, (9*HEIGHT)//10, 5, 5)
 
     destination = random_destination()
@@ -221,7 +283,7 @@ def main():
             if event.type == DESTINATION_REACHED:
                 destinations_reached += 1
                 if destinations_reached == NUM_DESTINATIONS:
-                    end_game(_map, player,
+                    end_game(_map, minimap, player,
                              destination_history, destinations_reached,
                              tracker, tracker.tracks, all_detections)
                     run = False
@@ -242,8 +304,9 @@ def main():
 
         all_detections = tracker.all_detections
 
-        draw_window(_map, player, [destination], destinations_reached,
-                    tracker.sensors, tracks, all_detections,
+        draw_window(_map, minimap, player,
+                    [destination], destinations_reached,
+                    tracker.sensors, tracks, all_detections, tracker.detected,
                     display_all=False)
         handle_destination(player, destination)
         time += timedelta(seconds=1)
@@ -253,7 +316,7 @@ def main():
     main()  # start game again
 
 
-def end_game(_map, player, destinations, destinations_reached,
+def end_game(_map, minimap, player, destinations, destinations_reached,
              tracker, tracks, all_detections):
 
     score = metrics(tracker)
@@ -261,8 +324,8 @@ def end_game(_map, player, destinations, destinations_reached,
     win_text = WIN_FONT.render("Complete", 1, WHITE)
     score_text = SCORE_FONT.render(f"Score: {score}", 1, WHITE)
 
-    draw_window(_map, player, destinations, destinations_reached,
-                tracker.sensors, tracks, all_detections,
+    draw_window(_map, minimap, player, destinations, destinations_reached,
+                tracker.sensors, tracks, all_detections, tracker.detected,
                 display_all=True)
     WIN.blit(
         win_text,

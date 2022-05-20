@@ -22,7 +22,7 @@ from stonesoup.dataassociator.tracktotrack import TrackToTruth
 
 class Player(pygame.Rect):
 
-    def __init__(self, window_width, window_height, vel, initial_orient, rot_speed, *args, **kwargs):
+    def __init__(self, window_width, window_height, vel, initial_orient, rot_speed, wing_size, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.win = (window_width, window_height)
@@ -35,10 +35,35 @@ class Player(pygame.Rect):
 
         self.loc_history = [tuple(self.coords)]
 
+        self.wing_size = wing_size
+
+        self.left_wing_history = [self.left_wingtip()]
+        self.right_wing_history = [self.right_wingtip()]
+        self.nose_history = [self.nose()]
+
     @property
     def rotation_vector(self):
         return np.array([self.vel * np.cos(self.orientation),
                          -self.vel * np.sin(self.orientation)])
+
+    def left_wingtip(self):
+        arrow_left_x = self.x + self.wing_size * np.cos(
+            -self.orientation + np.radians(120))
+        arrow_left_y = self.y + self.wing_size * np.sin(
+            -self.orientation + np.radians(120))
+        return arrow_left_x, arrow_left_y
+
+    def right_wingtip(self):
+        arrow_right_x = self.x + self.wing_size * np.cos(
+            -self.orientation - np.radians(120))
+        arrow_right_y = self.y + self.wing_size * np.sin(
+            -self.orientation - np.radians(120))
+        return arrow_right_x, arrow_right_y
+
+    def nose(self):
+        front_x = self.x + self.wing_size / 2 * np.cos(self.orientation)
+        front_y = self.y - self.wing_size / 2 * np.sin(self.orientation)
+        return front_x, front_y
 
     @property
     def next_coords(self):
@@ -65,9 +90,17 @@ class Player(pygame.Rect):
         self.coords = self.next_coords
         self.x, self.y = self.coords
 
+        self.update_history()
+
+    def update_history(self):
         self.loc_history.append(tuple(self.coords))
-        # if len(self.loc_history) > 200:
-        #     self.loc_history = self.loc_history[-180:]
+        self.left_wing_history.append(self.left_wingtip())
+        self.right_wing_history.append(self.right_wingtip())
+        self.nose_history.append(self.nose())
+
+
+class Missile(Player):
+    pass
 
 
 def make_tracker(sensors_info, detection_period):
@@ -102,7 +135,7 @@ def make_tracker(sensors_info, detection_period):
 
     updater = ExtendedKalmanUpdater()
 
-    deleter = UpdateTimeStepsDeleter(time_steps_since_update=detection_period + 1)
+    deleter = UpdateTimeStepsDeleter(time_steps_since_update=detection_period + 200)
 
     hypothesiser = DistanceHypothesiser(predictor=predictor,
                                         updater=updater,
@@ -144,6 +177,8 @@ class GameTracker:
 
     def track(self, time, player, detect: bool):
 
+        self.detected = False
+
         detections_at_time = set()
 
         player_x, player_y = player.x, player.y
@@ -158,6 +193,10 @@ class GameTracker:
         if detect:
             for sensor in self.sensors:
                 detections = sensor.measure({player_state})
+
+                if detections:
+                    self.detected = True
+
                 self.tracker.detector = [(time, detections)]
                 tracks = next(iter(self.tracker))
                 detections_at_time.update(detections)
